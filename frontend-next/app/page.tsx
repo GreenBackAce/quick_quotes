@@ -113,7 +113,14 @@ export default function MeetingDashboard() {
   const [recordingMeetingId, setRecordingMeetingId] = useState<string | null>(null);
   const [recordingDuration, setRecordingDuration] = useState(0);
 
+  // Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const API_BASE = 'http://localhost:8000';
 
   // --- Effects ---
@@ -143,6 +150,43 @@ export default function MeetingDashboard() {
     }
     return () => clearInterval(interval);
   }, [isRecording]);
+
+  // Search debounce effect
+  useEffect(() => {
+    const timer = setTimeout(async () => {
+      if (searchQuery.trim().length >= 2) {
+        setIsSearching(true);
+        setShowSearchResults(true);
+        try {
+          const res = await fetch(`${API_BASE}/meetings/search?q=${encodeURIComponent(searchQuery)}`);
+          const data = await res.json();
+          setSearchResults(data.results || []);
+        } catch (err) {
+          console.error("Search error:", err);
+          setSearchResults([]);
+        } finally {
+          setIsSearching(false);
+        }
+      } else {
+        setSearchResults([]);
+        setShowSearchResults(false);
+      }
+    }, 300); // 300ms debounce
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Close search results on escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showSearchResults) {
+        setShowSearchResults(false);
+        setSearchQuery("");
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showSearchResults]);
 
   // --- API Calls ---
 
@@ -351,6 +395,15 @@ export default function MeetingDashboard() {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const handleSelectSearchResult = (meetingId: string) => {
+    const meeting = meetings.find(m => m.id === meetingId);
+    if (meeting) {
+      setCurrentMeeting(meeting);
+      setShowSearchResults(false);
+      setSearchQuery("");
+    }
+  };
+
   return (
     <div className="flex h-screen bg-slate-950 text-slate-200 font-sans selection:bg-indigo-500/30 overflow-hidden">
 
@@ -367,6 +420,81 @@ export default function MeetingDashboard() {
 
         <div className="space-y-1">
           <SidebarLink icon={FileText} label="All Meetings" active={true} onClick={() => { }} />
+        </div>
+
+        {/* Search Input */}
+        <div className="mt-6 relative">
+          <div className="relative">
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search meetings..."
+              className="w-full bg-slate-800 border border-slate-700 rounded-lg py-2 pl-9 pr-4 text-sm focus:outline-none focus:border-indigo-500 transition-colors"
+            />
+            <Search className="absolute left-3 top-2.5 text-slate-500" size={16} />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setShowSearchResults(false);
+                }}
+                className="absolute right-2 top-2 p-1 hover:bg-slate-700 rounded"
+              >
+                <X size={14} className="text-slate-400" />
+              </button>
+            )}
+          </div>
+
+          {/* Search Results Dropdown */}
+          {showSearchResults && (
+            <div className="absolute top-full left-0 right-0 mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-2xl max-h-96 overflow-y-auto z-50">
+              {isSearching ? (
+                <div className="p-4 text-center text-slate-400">
+                  <Loader2 size={20} className="animate-spin mx-auto" />
+                </div>
+              ) : searchResults.length > 0 ? (
+                <div className="py-2">
+                  {searchResults.map((result, idx) => (
+                    <button
+                      key={result.meeting.id}
+                      onClick={() => handleSelectSearchResult(result.meeting.id)}
+                      className="w-full text-left px-3 py-2 hover:bg-slate-700 transition-colors"
+                    >
+                      <div className="font-medium text-sm text-white mb-1">
+                        {result.meeting.title}
+                      </div>
+                      <div className="space-y-1">
+                        {result.snippets.slice(0, 2).map((snippet: any, sIdx: number) => (
+                          <div key={sIdx} className="text-xs">
+                            {snippet.type === 'transcript' && (
+                              <span className="text-slate-500">{snippet.speaker}: </span>
+                            )}
+                            <span className="text-slate-400">
+                              {snippet.text.split(new RegExp(`(${snippet.highlight})`, 'gi')).map((part: string, i: number) =>
+                                part.toLowerCase() === snippet.highlight.toLowerCase() ? (
+                                  <mark key={i} className="bg-indigo-500/30 text-indigo-200 px-0.5 rounded">
+                                    {part}
+                                  </mark>
+                                ) : (
+                                  part
+                                )
+                              )}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 text-center text-slate-500 text-sm">
+                  No results found for &quot;{searchQuery}&quot;
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="mt-8 flex-1 overflow-y-auto custom-scrollbar">
@@ -565,8 +693,8 @@ export default function MeetingDashboard() {
                         chatHistory.map((msg, idx) => (
                           <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div className={`max-w-[85%] p-3 rounded-xl text-sm ${msg.role === 'user'
-                                ? 'bg-indigo-600 text-white rounded-br-none'
-                                : 'bg-slate-800 text-slate-300 rounded-bl-none'
+                              ? 'bg-indigo-600 text-white rounded-br-none'
+                              : 'bg-slate-800 text-slate-300 rounded-bl-none'
                               }`}>
                               {msg.content}
                             </div>

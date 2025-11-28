@@ -253,6 +253,76 @@ async def list_meetings():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list meetings: {str(e)}")
 
+@app.get("/meetings/search")
+async def search_meetings(q: str = "", limit: int = 20):
+    """Search meetings by title and transcript content"""
+    if not q or len(q.strip()) < 2:
+        return {"results": [], "total": 0}
+    
+    query = q.strip().lower()
+    meetings = db_manager.list_meetings()
+    results = []
+    
+    for meeting in meetings:
+        score = 0
+        snippets = []
+        
+        # Search in title
+        if query in meeting['title'].lower():
+            score += 10
+            snippets.append({
+                "type": "title",
+                "text": meeting['title'],
+                "highlight": query
+            })
+        
+        # Search in transcript
+        try:
+            transcript = db_manager.get_transcript(meeting['id'])
+            if transcript:
+                for segment in transcript:
+                    text = segment.get('text', '').lower()
+                    if query in text:
+                        score += 1
+                        # Get snippet with context
+                        original_text = segment.get('text', '')
+                        index = text.index(query)
+                        start = max(0, index - 50)
+                        end = min(len(original_text), index + len(query) + 50)
+                        snippet_text = original_text[start:end]
+                        
+                        # Add ellipsis if truncated
+                        if start > 0:
+                            snippet_text = "..." + snippet_text
+                        if end < len(original_text):
+                            snippet_text = snippet_text + "..."
+                        
+                        snippets.append({
+                            "type": "transcript",
+                            "text": snippet_text,
+                            "speaker": segment.get('speaker', 'Unknown'),
+                            "timestamp": segment.get('relative_time', ''),
+                            "highlight": query
+                        })
+                        
+                        if len([s for s in snippets if s['type'] == 'transcript']) >= 3:
+                            break
+        except Exception as e:
+            print(f"Error searching transcript for meeting {meeting['id']}: {e}")
+        
+        if score > 0:
+            results.append({
+                "meeting": meeting,
+                "score": score,
+                "snippets": snippets[:5]  # Max 5 snippets total
+            })
+    
+    # Sort by score descending
+    results.sort(key=lambda x: x['score'], reverse=True)
+    
+    return {"results": results[:limit], "total": len(results)}
+
+
 @app.delete("/meetings/{meeting_id}")
 async def delete_meeting(meeting_id: str):
     """Delete a meeting and its data"""
