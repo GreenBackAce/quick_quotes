@@ -15,4 +15,4 @@ noisereduce>=2.0.0
 webrtcvad>=2.0.10
 pydub>=0.25.0
 faster-whisper
-pyannote.audio==4.0.1
+pyannote.audio==4.0.1python-dotenv

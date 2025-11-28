@@ -41,18 +41,17 @@ def start_backend():
     return subprocess.Popen(backend_cmd, cwd=os.getcwd())
 
 def start_frontend():
-    """Start the Streamlit frontend"""
-    print("🎨 Starting Streamlit frontend...")
+    """Start the Next.js frontend"""
+    print("🎨 Starting Next.js frontend...")
     # Give backend a moment to start
     time.sleep(2)
 
-    frontend_cmd = [
-        "./venv/bin/streamlit", "run", "frontend/app.py",
-        "--server.port", "8501",
-        "--server.address", "0.0.0.0"
-    ]
+    frontend_cmd = ["npm", "run", "dev"]
+    
+    # Run in the frontend-next directory
+    frontend_cwd = os.path.join(os.getcwd(), "frontend-next")
 
-    return subprocess.Popen(frontend_cmd, cwd=os.getcwd())
+    return subprocess.Popen(frontend_cmd, cwd=frontend_cwd)
 
 def main():
     """Main launcher function"""
@@ -85,7 +84,7 @@ def main():
         frontend_process = start_frontend()
 
         print("\n✅ Services started!")
-        print("📱 Frontend: http://localhost:8501")
+        print("📱 Frontend: http://localhost:3000")
         print("🔧 Backend API: http://localhost:8000")
         print("📚 API Docs: http://localhost:8000/docs")
         print("\nPress Ctrl+C to stop all services...")
