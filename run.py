@@ -7,6 +7,7 @@ import subprocess
 import sys
 import os
 import time
+import webbrowser
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -88,6 +89,11 @@ def main():
         print("🔧 Backend API: http://localhost:8000")
         print("📚 API Docs: http://localhost:8000/docs")
         print("\nPress Ctrl+C to stop all services...")
+
+        # Give services a moment to fully start, then open browser
+        time.sleep(3)
+        print("🌐 Opening browser...")
+        webbrowser.open("http://localhost:3000")
 
         # Wait for processes
         try:
