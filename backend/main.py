@@ -11,6 +11,10 @@ import uuid
 from datetime import datetime
 import os
 import tempfile
+import warnings
+
+# Suppress pkg_resources deprecation warning from webrtcvad
+warnings.filterwarnings("ignore", category=UserWarning, module="webrtcvad")
 
 from .audio_processor import AudioProcessor
 from .database import DatabaseManager
